@@ -1,0 +1,24 @@
+Metadata-Version: 2.4
+Name: dependency-ghost
+Version: 0.1.0
+Summary: AI-Hallucination Guard: Age-gating for Python dependencies
+Author-email: Joseph Chu <hotcupofjoe2013@gmail.com>
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.31.0
+
+# Dependency-Ghost 👻
+
+> **Stop AI Hallucinations from becoming Supply Chain Attacks.**
+
+Dependency-Ghost is a security wrapper for Python package managers. It intercepts installation requests and cross-references them against PyPI metadata to identify "Slopsquatting" and hallucinated packages.
+
+## 🛡️ Governance Features
+
+- **Age-Gating:** Blocks packages younger than 72 hours.
+- **Reputation Check:** Validates download trends vs. name similarity.
+- **Audit Logging:** Keeps a local ledger of every blocked/allowed install.
+
+## 🛠️ Status
+
+Currently in **Alpha (v0.1.0)**. Infrastructure phase.
