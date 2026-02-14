@@ -1,2 +1,3 @@
 [console_scripts]
 ghost = ghost.checker:main
+ghost-init = ghost.interceptor:generate_alias

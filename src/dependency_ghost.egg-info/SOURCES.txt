@@ -8,3 +8,5 @@ src/dependency_ghost.egg-info/requires.txt
 src/dependency_ghost.egg-info/top_level.txt
 src/ghost/__init__.py
 src/ghost/checker.py
+src/ghost/checker_logic.py
+src/ghost/interceptor.py

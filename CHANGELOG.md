@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-14
+
+### Added
+
+- `ghost-init` command to generate shell interception logic for Bash/Zsh.
+- Automated blocking for `pip install` and `uv pip install`.
+- `textwrap.dedent` implementation to ensure shell-safe formatting.
+
+### Fixed
+
+- Resolved Bash syntax error where `eval` failed due to incorrect indentation in the generated shell function.
+- Prevented infinite loops in shell functions by using the `command` prefix.
+
 ## [0.1.0] - 2026-02-14
 
 ### Added

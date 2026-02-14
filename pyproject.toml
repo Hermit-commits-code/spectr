@@ -19,6 +19,8 @@ dependencies=[
 # This turns your code into  a terminal command!
 # Format: command_name = "package.module:function"
 ghost = "ghost.checker:main"
+ghost-init = "ghost.interceptor:generate_alias"
+
 
 [tool.setuptools.packages.find]
 where = ["src"]
