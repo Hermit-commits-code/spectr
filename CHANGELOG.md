@@ -6,8 +6,6 @@
 
 ### Added
 
-### Added
-
 - **Whitelisting System**: Users can now trust specific packages via a `.ghost-whitelist` file.
 - **Auto-Initialization**: Ghost now automatically creates a default whitelist file with instructions if one is missing.
 - **Comment Support**: The whitelist parser now ignores lines starting with `#`.
