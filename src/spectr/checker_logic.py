@@ -3,6 +3,15 @@ from datetime import datetime, timezone
 
 import requests
 
+SCORING_WEIGHTS = {
+    "typosquatting": 100,  # Critical: Immediate 0 score
+    "resurrection": 40,  # High: Potential hijacking
+    "payload_risk": 50,  # High: Script/Binary found in manifest
+    "new_account": 30,  # Medium: Lack of history
+    "hidden_identity": 10,  # Low: Lack of transparency
+    "low_velocity": 10,  # Low: Stale package
+}
+
 
 def is_package_suspicious(package_name: str, age_threshold_hours: int = 72) -> bool:
     """
@@ -191,34 +200,41 @@ def get_dependencies(pypi_data):
 
 
 def check_resurrection(data):
-    """Flags packages from accounts that were dormant for >2 years and suddenly released."""
+    """v0.18.1: Detects account resurrection with 'Giant's Immunity'."""
     releases = data.get("releases", {})
     if len(releases) < 2:
-        return True, {"status": "new_account"}
+        return True, {"max_dormancy_days": 0, "recent_activity": True}
 
     upload_times = []
-    for version_releases in releases.values():
-        for r in version_releases:
+    for pkg_version in releases:
+        for file_info in releases[pkg_version]:
             upload_times.append(
-                datetime.fromisoformat(r["upload_time"].replace("Z", ""))
+                datetime.fromisoformat(file_info["upload_time"].replace("Z", ""))
             )
 
     upload_times.sort()
 
     # Calculate gaps between consecutive releases
-    max_gap_days = 0
-    for i in range(1, len(upload_times)):
-        gap = (upload_times[i] - upload_times[i - 1]).days
-        max_gap_days = max(max_gap_days, gap)
+    gaps = [
+        (upload_times[i] - upload_times[i - 1]).days
+        for i in range(1, len(upload_times))
+    ]
+    max_gap = max(gaps) if gaps else 0
 
-    # If the biggest gap is > 730 days (2 years) AND the latest release is recent
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    latest_release_age = (now - upload_times[-1]).days
+    # Check if the most recent release was very recent (last 14 days)
+    last_release_age = (
+        datetime.now(timezone.utc).replace(tzinfo=None) - upload_times[-1]
+    ).days
+    is_recent = last_release_age < 14
 
-    if max_gap_days > 730 and latest_release_age < 30:
-        return False, {"max_dormancy_days": max_gap_days, "recent_activity": True}
+    meta = {"max_dormancy_days": max_gap, "recent_activity": is_recent}
 
-    return True, {"max_dormancy_days": max_gap_days}
+    # LOGIC: Flag only if there's a huge gap followed by a sudden burst,
+    # BUT give immunity to established "Giants" (more than 30 releases).
+    if max_gap > 730 and is_recent and len(releases) < 30:
+        return False, meta
+
+    return True, meta
 
 
 def scan_payload(package_name, data):
@@ -237,3 +253,33 @@ def scan_payload(package_name, data):
     meta = {"suspicious_extensions": suspicious_files if suspicious_files else "none"}
 
     return passed, meta
+
+
+def calculate_spectr_score(results):
+    """v0.18.1: Aggregates forensic heuristics into a 0-100 risk score."""
+    score = 100
+
+    # 1. Critical: Typosquatting (Manual override to 0)
+    # We check if 'typosquatting' exists and its first element (boolean) is True
+    if results.get("typosquatting", (False,))[0]:
+        return 0
+
+    # 2. Heuristic Penalties
+    # We map the results key to its corresponding weight
+    penalties = {
+        "Resurrection": "resurrection",
+        "Payload": "payload_risk",
+        "Velocity": "low_velocity",
+        "Reputation": "new_account",
+        "Identity": "hidden_identity",
+    }
+
+    for res_key, weight_key in penalties.items():
+        # Get the (passed, meta) tuple; default to (True, {}) if missing
+        passed, _ = results.get(res_key, (True, {}))
+
+        if not passed:
+            score -= SCORING_WEIGHTS.get(weight_key, 0)
+
+    # Ensure the score stays within bounds [0, 100]
+    return max(0, min(100, score))

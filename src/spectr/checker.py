@@ -9,9 +9,15 @@ from packaging import version
 from rich.console import Console
 from rich.table import Table
 
-from spectr.checker_logic import check_for_typosquatting, check_resurrection, disable_hooks, scan_payload
+from spectr.checker_logic import (
+    calculate_spectr_score,
+    check_for_typosquatting,
+    check_resurrection,
+    disable_hooks,
+    scan_payload,
+)
 
-VERSION = "0.15.0"
+VERSION = "0.18.0"
 console = Console()
 WHITELIST_FILE = os.path.expanduser("~/.spectr-whitelist")
 
@@ -263,16 +269,22 @@ def check_for_updates(current_version):
         pass
 
 
-def display_report(package, results):
+def display_report(package, results, score):
+    color = "green" if score > 80 else "yellow" if score >= 50 else "red"
     table = Table(
-        title=f"Spectr Forensic Report: [bold blue]{package}[/bold blue]",
+        title=f"Spectr Forensic Report: [bold blue]{package}[/bold blue]\n"
+        f"Risk Score: [bold {color}]{score}/100[/bold {color}]",
         header_style="bold magenta",
     )
     table.add_column("Heuristic", style="cyan")
     table.add_column("Status", justify="center")
     table.add_column("Forensic Evidence", style="white")
 
-    for check_name, (passed, meta) in results.items():
+    for check_name, value in results.items():
+        if check_name == "score":
+            continue
+
+        passed, meta = value  # Safe unpacking
         status = "[green]PASS[/green]" if passed else "[red]FAIL[/red]"
         table.add_row(check_name, status, str(meta))
 
@@ -372,7 +384,7 @@ def main():
                 continue
 
             # Run Forensics
-            all_results[current_pkg] = {
+            pkg_findings = {
                 "Reputation": check_reputation(current_pkg, data),
                 "Velocity": check_velocity(data),
                 "Identity": check_identity(current_pkg, data),
@@ -380,7 +392,10 @@ def main():
                 "Resurrection": check_resurrection(data),  # New heuristic live!
                 "Payload": scan_payload(current_pkg, data),
             }
-
+            # Calculate the score for this specific package
+            pkg_score = calculate_spectr_score(pkg_findings)
+            pkg_findings["score"] = pkg_score  # Store it in the results
+            all_results[current_pkg] = pkg_findings
             visited.add(current_pkg)
 
             # If recursive flag is set, find more friends to audit
@@ -393,7 +408,9 @@ def main():
                         task_queue.append((dep, current_depth + 1))
     all_passed = True
     for pkg_name, pkg_results in all_results.items():
-        if not all(status for status, meta in pkg_results.values()):
+        # Only iterate over findings that are actually tuples (status, meta)
+        findings = [v for k, v in pkg_results.items() if k != "score"]
+        if not all(status for status, meta in findings):
             all_passed = False
             break
     # --- 8. JSON Export (Primary Machine Output) ---
@@ -407,7 +424,12 @@ def main():
             "overall_safety": "safe" if all_passed else "risk",
             "tree_results": {
                 name: {
-                    h_name: {"passed": p, "data": m} for h_name, (p, m) in res.items()
+                    "score": res.get("score"),
+                    "findings": {
+                        h_name: {"passed": val[0], "data": val[1]}
+                        for h_name, val in res.items()
+                        if h_name != "score"
+                    },
                 }
                 for name, res in all_results.items()
             },
@@ -418,7 +440,9 @@ def main():
     # --- 9. Reporting (Human-Readable) ---
     # For now, we display the report for the main package requested
     if package in all_results:
-        display_report(package, all_results[package])
+        # Extract the score we stored during the audit loop
+        pkg_score = all_results[package].get("score", 100)
+        display_report(package, all_results[package], pkg_score)
 
         # If recursive, show a summary of the dependencies
         if args.recursive and len(all_results) > 1:
@@ -427,9 +451,18 @@ def main():
                 if name == package:
                     continue  # Skip root, already shown
 
-                passed = all(status for status, meta in results.values())
-                status_icon = "[green]✔[/green]" if passed else "[red]✘[/red]"
-                console.print(f"  {status_icon} {name}")
+                res_score = results.get("score", 100)
+                color = (
+                    "green"
+                    if res_score > 80
+                    else "yellow"
+                    if res_score >= 50
+                    else "red"
+                )
+                status_icon = "[green]✔[/green]" if res_score > 80 else "[red]✘[/red]"
+                console.print(
+                    f"  {status_icon} {name} ([{color}]{res_score}/100[/{color}])"
+                )
     # --- 10. Final Gatekeeper Logic ---
     if not all_passed:
         console.print(
