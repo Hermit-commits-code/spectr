@@ -2,6 +2,17 @@
 
 ## All notable changes to this project will be documented in this file
 
+## [0.8.0] - 2026-02-15
+
+### Added
+
+- **Seamless Integration**: Added `--install-hook` flag to automatically configure shell aliases (`pip-install`).
+- **Idempotent Setup**: The hook installer now detects existing configurations to prevent duplicate entries in `.bashrc` or `.zshrc`.
+- **Shell Awareness**: Logic to automatically differentiate between Bash and Zsh environments.
+  es (`pip-install`).
+- **Idempotent Setup**: The hook installer now detects existing configurations to prevent duplicate entries in `.bashrc` or `.zshrc`.
+- **Shell Awareness**: Logic to automatically differentiate between Bash and Zsh environments.
+
 ## [0.7.0] - 2026-02-15
 
 ### Added

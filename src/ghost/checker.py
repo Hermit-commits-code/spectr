@@ -12,6 +12,34 @@ WHITELIST_FILE = os.path.expanduser("~/.ghost-whitelist")
 
 
 # --- HELPER FUNCTIONS ---
+def install_shell_hook():
+    """v0.8.0: Automates the creation of the pip-install alias."""
+    # Detect shell type
+    shell_path = os.environ.get("SHELL", "")
+    if "zsh" in shell_path:
+        rc_file = os.path.expanduser("~/.zshrc")
+    else:
+        rc_file = os.path.expanduser("~/.bashrc")
+
+    hook_cmd = (
+        "\n# Ghost Security Hook\nalias pip-install='ghost $1 && pip install $1'\n"
+    )
+
+    try:
+        # Check if already installed to avoid duplicates
+        if os.path.exists(rc_file):
+            with open(rc_file, "r") as f:
+                if "Ghost Security Hook" in f.read():
+                    print(f"ℹ️  Hook already exists in {rc_file}")
+                    return
+
+        with open(rc_file, "a") as f:
+            f.write(hook_cmd)
+        print(f"✅ Hook added to {rc_file}. Please run 'source {rc_file}' to activate.")
+    except Exception as e:
+        print(f"❌ Failed to install hook: {e}")
+
+
 def print_hook_instruction():
     print("\n🛡️  To fully protect your environment, add this to your .bashrc or .zshrc:")
     print("alias pip-install='ghost check $1 && pip install $1'")
@@ -181,9 +209,18 @@ def main():
     parser.add_argument(
         "--sign", action="store_true", help="Sign the whitelist after manual changes"
     )
+    parser.add_argument(
+        "--install-hook",
+        action="store_true",
+        help="Install the pip-install shell alias",
+    )
     args = parser.parse_args()
 
     print(f"👻 Ghost is haunting {args.package}...")
+
+    if args.install_hook:
+        install_shell_hook()
+        sys.exit(0)
 
     if args.sign:
         sign_whitelist()
