@@ -7,13 +7,13 @@ def generate_alias():
     hook = """
         pip() {
             if [[ "$1" == "install" && -n "$2" && "$2" != -* ]]; then
-                ghost "$2"
-                if [ $? -eq 0 ]; then
-                    command pip "$@"
-                else
-                    echo "🛡️  Ghost blocked the installation of '$2'."
-                    return 1
-                fi
+               for pkg in "${@:2}"; do
+                    # Skip flags like --upgrade or -r
+                    if [[ "$pkg" != -* ]]; then
+                        ghost "$pkg" || return 1
+                    fi
+                done
+                command pip "$@"
             else
                 command pip "$@"
             fi
@@ -35,3 +35,12 @@ def generate_alias():
     """
     # .strip() removes leading/trailing newlines that cause 'unexpected token' errors
     print(textwrap.dedent(hook).strip())
+
+def remove_alias():
+    """Outputs the shell commands to remove Ghost protection."""
+    unhook="""
+        unset -f pip
+        unset -f uv
+        echo "👻 Ghost protection disabled. Standard package managers restored."
+    """
+    print(textwrap.dedent(unhook).strip())

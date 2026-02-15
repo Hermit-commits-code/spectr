@@ -1,9 +1,30 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## All notable changes to this project will be documented in this file
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+[0.3.0] - 2026-02-14
+
+### Added
+
+- Multi-Package Support: The interceptor now loops through all command-line arguments. This ensures that every package
+  in a bulk command (e.g., pip install requests pandas) is verified by Ghost.
+- The "Kill Switch": Introduced the ghost-off command to safely unset shell aliases and restore the default behavior of
+  pip and uv.
+- Package Manager Consistency: Added multi-package looping logic to the uv wrapper to match the pip implementation.
+
+### Fixed
+
+- Shell Interpolation: Resolved a command not found error by correctly using ${@:2} for argument slicing in Bash.
+- Syntax Robustness: Added necessary spacing within [[...]] blocks to ensure compatibility with strict POSIX/Bash shells.
+- Flag Filtering: Improved the loop logic to automatically skip arguments starting with a dash (e.g., --upgrade, -r), preventing Ghost from trying to "check" non-package flags.
+
+### Security
+
+    Atomic Failure: If any single package in a multi-package install fails the Ghost check, the entire installation
+    command is aborted, preventing partial "poisoning" of the environment.
 
 ## [0.2.0] - 2026-02-14
 
