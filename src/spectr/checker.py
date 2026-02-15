@@ -6,14 +6,13 @@ from datetime import datetime, timezone
 
 import requests
 
-from ghost.similarity import check_for_typosquatting
+from .similarity import check_for_typosquatting
 
-WHITELIST_FILE = os.path.expanduser("~/.ghost-whitelist")
+WHITELIST_FILE = os.path.expanduser("~/.spectr-whitelist")
 
 
 # --- HELPER FUNCTIONS ---
 def install_shell_hook():
-    """v0.8.0: Automates the creation of the pip-install alias."""
     # Detect shell type
     shell_path = os.environ.get("SHELL", "")
     if "zsh" in shell_path:
@@ -22,14 +21,14 @@ def install_shell_hook():
         rc_file = os.path.expanduser("~/.bashrc")
 
     hook_cmd = (
-        "\n# Ghost Security Hook\nalias pip-install='ghost $1 && pip install $1'\n"
+        "\n# Spectr Security Hook\nalias pip-install='spectr $1 && pip install $1'\n"
     )
 
     try:
         # Check if already installed to avoid duplicates
         if os.path.exists(rc_file):
             with open(rc_file, "r") as f:
-                if "Ghost Security Hook" in f.read():
+                if "Spectr Security Hook" in f.read():
                     print(f"ℹ️  Hook already exists in {rc_file}")
                     return
 
@@ -42,7 +41,7 @@ def install_shell_hook():
 
 def print_hook_instruction():
     print("\n🛡️  To fully protect your environment, add this to your .bashrc or .zshrc:")
-    print("alias pip-install='ghost check $1 && pip install $1'")
+    print("alias pip-install='Spectr check $1 && pip install $1'")
 
 
 def ensure_whitelist_exists():
@@ -50,7 +49,7 @@ def ensure_whitelist_exists():
     if not os.path.exists(WHITELIST_FILE):
         with open(WHITELIST_FILE, "w") as f:
             f.write(
-                "# Ghost Whitelist - Add trusted package names here (one per line)\n"
+                "# Spectr Whitelist - Add trusted package names here (one per line)\n"
             )
         print(f"📦 Created default {WHITELIST_FILE}")
 
@@ -72,7 +71,7 @@ def fetch_pypi_data(package_name):
     url = f"https://pypi.org/pypi/{package_name}/json"
     try:
         headers = {
-            "User-Agent": "Ghost-Security-Tool/0.7.0 (https://github.com/Hermit-commits-code/dependency-ghost)",
+            "User-Agent": "Spectr-Security-Tool/0.10.0 (https://github.com/Hermit-commits-code/spectr)",
             "Accept": "application/json",
         }
         response = requests.get(url, headers=headers, timeout=5, verify=True)
@@ -84,6 +83,25 @@ def fetch_pypi_data(package_name):
 
 
 # --- SECURITY ENGINES ---
+def check_structure(data):
+    """v0.10.0: Detects 'Skeleton' packages that lack actual code substance."""
+    info = data.get("info", {})
+    version = info.get("version")
+    releases = data.get("releases", {}).get(version, [])
+
+    for release in releases:
+        if release.get("packagetype") == "sdist":
+            size_bytes = release.get("size", 0)
+            # Threshold: 2KB is incredibly small for a functional library
+            if 0 < size_bytes < 2048:
+                print(f"⚠️  STRUCTURAL ANOMALY: Source size is only {size_bytes} bytes.")
+                print(
+                    "   This package may be a 'Skeleton' used for install-time attacks."
+                )
+                return False
+    return True
+
+
 def verify_whitelist_integrity():
     if not os.path.exists(WHITELIST_FILE):
         return True
@@ -105,13 +123,14 @@ def verify_whitelist_integrity():
         print(
             "🚨 SECURITY BREACH: The whitelist has been modified by an external process!"
         )
-        print("Please verify ~/.ghost-whitelist and run 'ghost sign' to re-authorize.")
+        print(
+            "Please verify ~/.spectr-whitelist and run 'spectr sign' to re-authorize."
+        )
         return False
     return True
 
 
 def check_velocity(data):
-    """v0.6.0: Checks if a package is pushing too many versions too fast (Bot behavior)."""
     releases = data.get("releases", {})
     if not releases:
         return True
@@ -232,7 +251,7 @@ def sign_whitelist():
 def main():
     ensure_whitelist_exists()
 
-    parser = argparse.ArgumentParser(description="Ghost: Supply Chain Defense Tool")
+    parser = argparse.ArgumentParser(description="Spectr: Supply Chain Defense Tool")
     parser.add_argument("package", help="The name of the package to check")
     parser.add_argument(
         "--sign", action="store_true", help="Sign the whitelist after manual changes"
@@ -244,7 +263,7 @@ def main():
     )
     args = parser.parse_args()
 
-    print(f"👻 Ghost is haunting {args.package}...")
+    print(f"👻 Spectr is haunting {args.package}...")
 
     if args.install_hook:
         install_shell_hook()
@@ -278,14 +297,16 @@ def main():
         print(f"🚨 ALERT: {args.package} is younger than 72 hours!")
         sys.exit(1)
 
-    # 5. Reputation & Velocity Checks (v0.6.0)
-    if (
-        not check_reputation(args.package, data)
-        or not check_velocity(data)
-        or not check_reputation(args.package, data)
-        or not check_velocity(data)
+    # 5. Full Forensic Suite: Reputation, Velocity, Identity, & Structure
+    if not any(
+        [
+            check_reputation(args.package, data),
+            check_velocity(data),
+            check_identity(args.package, data),
+            check_structure(data),  # The v0.10.0 Skeleton check
+        ]
     ):
-        print("🛑 SECURITY RISK: Metadata suggests automated trust inflation.")
+        print("🛑 SECURITY RISK: Behavioral or Structural anomalies detected.")
         sys.exit(1)
 
     print(f"✅ {args.package} appears established and safe.")

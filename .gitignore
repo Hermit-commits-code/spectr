@@ -14,4 +14,4 @@ dist/
 
 # OS
 .DS_Store
-.ghost-whitelist
+.spectr-whitelist

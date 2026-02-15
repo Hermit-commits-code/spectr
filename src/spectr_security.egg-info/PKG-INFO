@@ -1,3 +1,12 @@
+Metadata-Version: 2.4
+Name: spectr-security
+Version: 0.10.0
+Summary: A proactive supply-chain defense tool for Python environments.
+Author-email: Joseph Chu <hotcupofjoe2013@gmail.com>
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.31.0
+
 # 🛡️ Spectr
 
 **Proactive Supply-Chain Defense for Python.**

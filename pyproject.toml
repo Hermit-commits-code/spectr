@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dependency-ghost"
-version = "0.1.0"
-description = "AI-Hallucination Guard: Age-gating for Python dependencies"
+name = "spectr-security"
+version = "0.10.0"
+description = "A proactive supply-chain defense tool for Python environments."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -18,9 +18,9 @@ dependencies=[
 [project.scripts]
 # This turns your code into  a terminal command!
 # Format: command_name = "package.module:function"
-ghost = "ghost.checker:main"
-ghost-init = "ghost.interceptor:generate_alias"
-ghost-off = "ghost.interceptor:remove_alias"
+spectr = "spectr.checker:main"
+spectr-init = "spectr.interceptor:generate_alias"
+spectr-off = "spectr.interceptor:remove_alias"
 
 [tool.setuptools.packages.find]
 where = ["src"]
