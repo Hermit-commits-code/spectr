@@ -2,6 +2,15 @@
 
 ## All notable changes to this project will be documented in this file
 
+## [0.12.0] - Upcoming
+
+### Planned
+
+- **JSON Export**: Support for `--json` to allow other tools to consume Spectr's findings.
+- **Enhanced Typosquatting**: Expand high-value target list and refine distance sensitivity.
+- **Improved Logging**: Implement a `--verbose` flag for detailed forensic output.
+- **Self-Update**: Add a command to check for the latest version of Spectr.
+
 ## [0.11.0] - 2026-02-15
 
 ### Added

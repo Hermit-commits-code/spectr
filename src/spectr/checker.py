@@ -87,22 +87,21 @@ def fetch_pypi_data(package_name):
 
 # --- SECURITY ENGINES ---
 def check_structure(data):
-    """v0.10.0: Detects 'Skeleton' packages that lack actual code substance."""
     info = data.get("info", {})
     version = info.get("version")
     releases = data.get("releases", {}).get(version, [])
 
+    sdist_size = 0
     for release in releases:
         if release.get("packagetype") == "sdist":
-            size_bytes = release.get("size", 0)
-            # Threshold: 2KB is incredibly small for a functional library
-            if 0 < size_bytes < 2048:
-                print(f"⚠️  STRUCTURAL ANOMALY: Source size is only {size_bytes} bytes.")
-                print(
-                    "   This package may be a 'Skeleton' used for install-time attacks."
-                )
-                return False
-    return True
+            sdist_size = release.get("size", 0)
+            break
+
+    meta = {"sdist_size_bytes": sdist_size}
+
+    if 0 < sdist_size < 2048:
+        return False, meta
+    return True, meta
 
 
 def verify_whitelist_integrity():
@@ -136,7 +135,7 @@ def verify_whitelist_integrity():
 def check_velocity(data):
     releases = data.get("releases", {})
     if not releases:
-        return True
+        return True, {"releases": 0, "days_old": 0}
 
     upload_times = []
     for version in releases:
@@ -146,29 +145,28 @@ def check_velocity(data):
             )
 
     if not upload_times:
-        return True
+        return True, {"releases": len(releases), "days_old": 0}
 
     first_upload = min(upload_times)
     days_old = (
         datetime.now(timezone.utc).replace(tzinfo=None) - first_upload
     ).days or 1
 
-    # Flag if > 15 releases in less than 3 days (Classic spray-and-pray attack)
+    # Metadata capture
+    meta = {"releases": len(releases), "days_old": days_old}
+
+    # Logic: Flag if > 15 releases in less than 3 days
     if days_old < 3 and len(releases) > 15:
-        print(
-            f"⚠️  CAUTION: Unusual release velocity ({len(releases)} versions in {days_old} days)."
-        )
-        return False
-    return True
+        return False, meta
+
+    return True, meta
 
 
 def check_reputation(package_name, data):
-    """v0.6.0: Flags 'Too good to be true' scenarios (50k downloads on a 1-day old package)."""
     info = data.get("info", {})
-    # Note: PyPI stats are often 0 in JSON, but we check if provided
     downloads = info.get("downloads", {}).get("last_month", 0)
-
     releases = data.get("releases", {})
+
     upload_times = [
         datetime.fromisoformat(r[0].get("upload_time").replace("Z", ""))
         for r in releases.values()
@@ -176,28 +174,24 @@ def check_reputation(package_name, data):
     ]
 
     if not upload_times:
-        return True
+        return True, {"downloads": downloads, "days_old": 0}
 
     days_old = (
         datetime.now(timezone.utc).replace(tzinfo=None) - min(upload_times)
     ).days or 1
+    meta = {"downloads": downloads, "days_old": days_old}
+
     # High downloads + Very young = Suspected Bot Inflation
     if downloads > 10000 and days_old < 3:
-        print(
-            f"🚩 WARNING: {package_name} has high download counts but is only {days_old} days old!"
-        )
-        return False
-    return True
+        return False, meta
+    return True, meta
 
 
 def check_identity(package_name, data):
-    """v0.9.0: Detects if a 'branded' package is maintained by a generic email domain."""
     info = data.get("info", {})
-    email = info.get("author_email") or info.get("maintainer_email") or ""
-    email = email.lower()
-    name = package_name.lower()
+    email = (info.get("author_email") or info.get("maintainer_email") or "").lower()
 
-    # High-target prefixes and generic domains
+    meta = {"email": email or "hidden"}
     brands = ["google", "aws", "azure", "microsoft", "facebook", "meta", "apple"]
     generic_domains = [
         "gmail.com",
@@ -208,14 +202,10 @@ def check_identity(package_name, data):
     ]
 
     for brand in brands:
-        if name.startswith(brand):
-            # If it matches a brand but uses a generic email, flag it
+        if package_name.lower().startswith(brand):
             if any(domain in email for domain in generic_domains):
-                print(
-                    f"🚨 IDENTITY MISMATCH: '{brand}' package is maintained by a generic email ({email})!"
-                )
-                return False
-    return True
+                return False, meta
+    return True, meta
 
 
 def is_package_suspicious(data):
@@ -252,13 +242,25 @@ def sign_whitelist():
 
 
 def main():
-    ensure_whitelist_exists()
-    parser = argparse.ArgumentParser(description="🛡️ Spectr: Supply Chain Defense")
+    # v0.12.0 Metadata
+    VERSION = "0.12.0"
 
-    parser.add_argument("package", nargs="?", help="Package to audit")
+    ensure_whitelist_exists()
+    parser = argparse.ArgumentParser(
+        description="🛡️  Spectr: Proactive Supply-Chain Defense"
+    )
+
+    # Flexible positionals for 'check package' or 'package'
+    parser.add_argument("args", nargs="*", help="Command and package name")
+
+    # Flags
     parser.add_argument("--sign", action="store_true", help="Sign the whitelist")
     parser.add_argument("--install-hook", action="store_true", help="Install hooks")
     parser.add_argument("--disable", action="store_true", help="Remove hooks")
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Show forensic metrics"
+    )
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
 
     args = parser.parse_args()
 
@@ -266,66 +268,103 @@ def main():
     if args.disable:
         disable_hooks()
         sys.exit(0)
-
     if args.install_hook:
         install_shell_hook()
         sys.exit(0)
-
     if args.sign:
         sign_whitelist()
         sys.exit(0)
 
-    # --- 2. Validation ---
-    if not args.package:
+    # --- 2. Argument Routing ---
+    package = None
+    if len(args.args) >= 2 and args.args[0] == "check":
+        package = args.args[1]
+    elif len(args.args) == 1:
+        package = args.args[0]
+
+    if not package:
         parser.print_help()
-        sys.exit(1)
+        sys.exit(0)
 
-    # --- 3. Integrity & Whitelist (Local/Fast) ---
+    # --- 3. Update Check (Non-blocking, skipped for JSON) ---
+    if not args.json:
+        check_for_updates(VERSION)
+
+    # --- 4. Security Integrity Check ---
     if not verify_whitelist_integrity():
-        print(
-            "❌ Integrity error. If you manually edited the whitelist, run 'spectr --sign'."
-        )
+        print("❌ Integrity error. Run 'spectr --sign' to re-authorize.")
         sys.exit(1)
 
-    if is_whitelisted(args.package):
-        print(f"⚪ {args.package} is whitelisted. Skipping security checks.")
+    if is_whitelisted(package):
+        print(f"⚪ {package} is whitelisted. Skipping.")
         sys.exit(0)
 
-    # --- 4. Local Forensic Analysis ---
-    if check_for_typosquatting(args.package):
-        print(f"🚨 ALERT: Suspected typosquatting attempt for '{args.package}'.")
+    # --- 5. Local Typosquatting ---
+    is_squat, target = check_for_typosquatting(package)
+    if is_squat:
         sys.exit(1)
 
-    print(f"🛡️  Spectr is analyzing {args.package}...")
+    # Suppress standard output if JSON is requested to keep stdout clean
+    if not args.json:
+        print(f"🛡️  Spectr is analyzing {package}...")
 
-    # --- 5. Remote Forensic Analysis (Network) ---
-    data = fetch_pypi_data(args.package)
+    # --- 6. Data Fetching ---
+    data = fetch_pypi_data(package)
     if not data:
-        print(f"❓ Could not find {args.package} on PyPI. Proceed with caution.")
+        if args.json:
+            import json
+
+            print(
+                json.dumps(
+                    {"package": package, "error": "not_found", "safety": "unknown"}
+                )
+            )
+        else:
+            print(f"❓ Could not find {package} on PyPI.")
         sys.exit(0)
 
-    if is_package_suspicious(data):
-        print(f"🚨 ALERT: {args.package} is younger than 72 hours!")
-        sys.exit(1)
-
-    # --- 6. The Forensic Suite (The Gatekeeper) ---
-    # We use all() to ensure EVERY forensic check returns True (Safe).
-    # If even one returns False, the gate stays closed.
-    checks = {
-        "Reputation": check_reputation(args.package, data),
+    # --- 7. The Forensic Suite ---
+    results = {
+        "Reputation": check_reputation(package, data),
         "Velocity": check_velocity(data),
-        "Identity": check_identity(args.package, data),
+        "Identity": check_identity(package, data),
         "Structure": check_structure(data),
     }
 
-    if not all(checks.values()):
-        print("\n🛑 SECURITY RISK: Behavioral or Structural anomalies detected.")
-        for name, passed in checks.items():
-            if not passed:
-                print(f"   ✖ Failed: {name} check")
+    all_passed = all(status for status, meta in results.values())
+
+    # --- 8. JSON Export (Primary Machine Output) ---
+    if args.json:
+        import json
+
+        output = {
+            "package": package,
+            "version": VERSION,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "overall_safety": "safe" if all_passed else "risk",
+            "metrics": {
+                name: {"passed": p, "data": m} for name, (p, m) in results.items()
+            },
+        }
+        print(json.dumps(output, indent=2))
+        sys.exit(0 if all_passed else 1)
+
+    # --- 9. Verbose Reporting (Human-Readable Details) ---
+    if args.verbose:
+        print("\n🔍 Forensic Metrics:")
+        for name, (passed, meta) in results.items():
+            status_icon = "✅" if passed else "❌"
+            metrics = ", ".join([f"{k}: {v}" for k, v in meta.items()])
+            print(f"   {status_icon} {name:12}: {metrics}")
+
+    # --- 10. Final Gatekeeper Logic ---
+    if not all_passed:
+        print("\n🛑 SECURITY RISK: Forensic anomalies detected.")
+        if not args.verbose:
+            print("   Run with --verbose for detailed metrics.")
         sys.exit(1)
 
-    print(f"\n✅ {args.package} appears established and safe.")
+    print(f"\n✅ {package} appears established and safe.")
     sys.exit(0)
 
 

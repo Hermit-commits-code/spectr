@@ -81,11 +81,69 @@ def disable_hooks():
         print(f"❌ Failed to disable hooks: {e}")
 
 
+def check_for_typosquatting(package_name):
+    """
+    v0.12.0: Checks if package_name is a typosquatting attempt.
+    Returns: (bool, str or None) -> (is_malicious, target_name)
+    """
+    # High-value targets to protect
+    SQUAT_TARGETS = {
+        # Core Infrastructure
+        "requests": 1,
+        "urllib3": 1,
+        "pip": 1,
+        "setuptools": 1,
+        # Cloud & DevOps
+        "boto3": 1,
+        "botocore": 1,
+        "ansible": 1,
+        "docker": 1,
+        "pulumi": 1,
+        # Data Science & AI
+        "pandas": 1,
+        "numpy": 1,
+        "scipy": 1,
+        "matplotlib": 1,
+        "tensorflow": 2,
+        "torch": 1,
+        "scikit-learn": 2,
+        "openai": 1,
+        # Web Frameworks
+        "django": 1,
+        "flask": 1,
+        "fastapi": 1,
+        "pydantic": 1,
+        # Security
+        "cryptography": 2,
+        "pyjwt": 1,
+        "passlib": 1,
+    }
+
+    name = package_name.lower()
+
+    for target, threshold in SQUAT_TARGETS.items():
+        # Skip if it's an exact match (that's the real package)
+        if name == target:
+            continue
+
+        # Simple Levenshtein implementation (or use Levenshtein library if installed)
+        distance = levenshtein_distance(name, target)
+
+        if distance <= threshold:
+            print(f"🚨 ALERT: Suspected typosquatting for '{name}'.")
+            print(f"   It is remarkably similar to the popular package '{target}'.")
+            return True, target
+
+    return False, None
+
+
 def levenshtein_distance(s1, s2):
+    """Simple iterative Levenshtein distance calculation."""
     if len(s1) < len(s2):
         return levenshtein_distance(s2, s1)
     if len(s2) == 0:
         return len(s1)
+
     previous_row = range(len(s2) + 1)
     for i, c1 in enumerate(s1):
         current_row = [i + 1]
@@ -95,33 +153,5 @@ def levenshtein_distance(s1, s2):
             substitutions = previous_row[j] + (c1 != c2)
             current_row.append(min(insertions, deletions, substitutions))
         previous_row = current_row
+
     return previous_row[-1]
-
-
-def check_for_typosquatting(package_name):
-    """Detects if a package is a 'look-alike' of popular libraries."""
-    # High-value targets often impersonated
-    targets = [
-        "requests",
-        "urllib3",
-        "numpy",
-        "pandas",
-        "boto3",
-        "cryptography",
-        "tensorflow",
-        "pytorch",
-    ]
-
-    name = package_name.lower()
-    for target in targets:
-        if name == target:
-            return False  # Exact match is fine
-
-        distance = levenshtein_distance(name, target)
-        # If the name is 1-2 characters off, it's highly suspicious
-        if 0 < distance <= 2:
-            print(
-                f"🚨 TYPOSQUAT ALERT: '{name}' is very similar to the official '{target}' library."
-            )
-            return True
-    return False
