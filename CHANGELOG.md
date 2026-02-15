@@ -2,6 +2,15 @@
 
 ## All notable changes to this project will be documented in this file
 
+## [0.7.0] - 2026-02-15
+
+### Added
+
+- **Configuration Hardening**: Moved whitelist to `~/.ghost-whitelist` to prevent project-level injection.
+- **Integrity Tripwire**: Implemented SHA-256 signature verification for the whitelist to detect unauthorized modifications.
+- **Administrative CLI**: Added `--sign` flag to allow users to re-authorize the whitelist.
+- **Network Defense**: Implemented professional User-Agent headers and enforced SSL verification.
+
 ## [0.6.0] - 2026-02-15
 
 ### Added

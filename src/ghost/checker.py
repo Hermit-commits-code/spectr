@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import os
 import sys
 from datetime import datetime, timezone
@@ -7,9 +8,13 @@ import requests
 
 from ghost.similarity import check_for_typosquatting
 
-WHITELIST_FILE = ".ghost-whitelist"
+WHITELIST_FILE = os.path.expanduser("~/.ghost-whitelist")
+
 
 # --- HELPER FUNCTIONS ---
+def print_hook_instruction():
+    print("\n🛡️  To fully protect your environment, add this to your .bashrc or .zshrc:")
+    print("alias pip-install='ghost check $1 && pip install $1'")
 
 
 def ensure_whitelist_exists():
@@ -38,7 +43,11 @@ def fetch_pypi_data(package_name):
     """Single entry point for PyPI data to avoid redundant API calls."""
     url = f"https://pypi.org/pypi/{package_name}/json"
     try:
-        response = requests.get(url, timeout=5)
+        headers = {
+            "User-Agent": "Ghost-Security-Tool/0.7.0 (https://github.com/Hermit-commits-code/dependency-ghost)",
+            "Accept": "application/json",
+        }
+        response = requests.get(url, headers=headers, timeout=5, verify=True)
         if response.status_code == 200:
             return response.json()
         return None
@@ -47,6 +56,30 @@ def fetch_pypi_data(package_name):
 
 
 # --- SECURITY ENGINES ---
+def verify_whitelist_integrity():
+    if not os.path.exists(WHITELIST_FILE):
+        return True
+
+    with open(WHITELIST_FILE, "rb") as f:
+        current_hash = hashlib.sha256(f.read()).hexdigest()
+
+    sig_file = WHITELIST_FILE + ".sig"
+    if not os.path.exists(sig_file):
+        # First time setup: create the signature
+        with open(sig_file, "w") as f:
+            f.write(current_hash)
+        return True
+
+    with open(sig_file, "r") as f:
+        stored_hash = f.read().strip()
+
+    if current_hash != stored_hash:
+        print(
+            "🚨 SECURITY BREACH: The whitelist has been modified by an external process!"
+        )
+        print("Please verify ~/.ghost-whitelist and run 'ghost sign' to re-authorize.")
+        return False
+    return True
 
 
 def check_velocity(data):
@@ -120,11 +153,21 @@ def is_package_suspicious(data):
     ]
 
     first_upload = min(upload_times)
-    hours_old = (datetime.utcnow() - first_upload).total_seconds() / 3600
+    hours_old = (
+        datetime.now(timezone.utc).replace(tzinfo=None) - first_upload
+    ).total_seconds() / 3600
 
     if hours_old < 72:
         return True
     return False
+
+
+def sign_whitelist():
+    with open(WHITELIST_FILE, "rb") as f:
+        new_hash = hashlib.sha256(f.read()).hexdigest()
+    with open(WHITELIST_FILE + ".sig", "w") as f:
+        f.write(new_hash)
+    print("🖋️  Whitelist signature updated successfully.")
 
 
 # --- MAIN EXECUTION ---
@@ -135,9 +178,19 @@ def main():
 
     parser = argparse.ArgumentParser(description="Ghost: Supply Chain Defense Tool")
     parser.add_argument("package", help="The name of the package to check")
+    parser.add_argument(
+        "--sign", action="store_true", help="Sign the whitelist after manual changes"
+    )
     args = parser.parse_args()
 
     print(f"👻 Ghost is haunting {args.package}...")
+
+    if args.sign:
+        sign_whitelist()
+        sys.exit(0)
+
+    if not verify_whitelist_integrity():
+        sys.exit(1)
 
     # 1. Check Whitelist First (Express Lane)
     if is_whitelisted(args.package):
