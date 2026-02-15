@@ -1,4 +1,5 @@
 # 🛡️ Spectr
+
 ![Version](https://img.shields.io/badge/version-0.12.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
@@ -29,6 +30,20 @@ uv pip install spectr
 spectr-init
 ```
 
+## Advanced Diagnostics (New in v0.12.0)
+
+### Detailed forensic breakdown
+
+```bash
+uvx spectr check <package> --verbose
+```
+
+### Machine-readable output for CI/CD pipelines
+
+```bash
+uvx spectr check <package> --json
+```
+
 ## 🛠️ Security Heuristics
 
 Spectr uses a tiered defense-in-depth model:
@@ -42,13 +57,18 @@ Spectr uses a tiered defense-in-depth model:
 
 Command Description
 
-| Command     | Outcome                                           |
-| ----------- | ------------------------------------------------- |
-| spectr-init | Injects security aliases into .bashrc / .zshrc.   |
-| spectr-off  | Emergency bypass: removes all shell interceptions |
-| spectr sign | Re-authorizes a manually edited whitelist.        |
-| spectr sign | Re-authorizes a manually edited whitelist.        |
+| Command       | Outcome                                             |
+| ------------- | --------------------------------------------------- |
+| spectr-init   | Injects security aliases into .bashrc / .zshrc.     |
+| spectr-off    | Emergency bypass: removes all shell interceptions   |
+| spectr sign   | Re-authorizes a manually edited whitelist.          |
+| spectr --json | Outputs analysis results in structured JSON format. |
 
 ## 🛡️ Integrity
 
 Spectr maintains a signed whitelist at ~/.spectr-whitelist. Unauthorized manual modifications trigger an integrity alert, preventing malware from self-whitelisting.
+
+```
+
+
+```

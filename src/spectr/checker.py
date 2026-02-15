@@ -238,6 +238,23 @@ def sign_whitelist():
     print("🖋️  Whitelist signature updated successfully.")
 
 
+def check_for_updates(current_version):
+    """v0.12.0: Checks PyPI to see if a newer version of Spectr exists."""
+    try:
+        # We query the PyPI JSON API for Spectr's metadata
+        response = requests.get("https://pypi.org/pypi/spectr/json", timeout=1.5)
+        if response.status_code == 200:
+            latest_version = response.json()["info"]["version"]
+            if latest_version != current_version:
+                print(
+                    f"🔔 NOTICE: A new version of Spectr is available ({latest_version})."
+                )
+                print("   Run 'uvx --refresh spectr' to update.")
+    except Exception:
+        # Fail silently: update checks should never block a security tool
+        pass
+
+
 # --- MAIN EXECUTION ---
 
 
