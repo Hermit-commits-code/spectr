@@ -2,6 +2,12 @@
 
 ## All notable changes to this project will be documented in this file
 
+## [0.8.1] - 2026-02-15
+
+### Added
+
+- **Formal Case Study**: Documentation of the "Inflated Trust" attack and Ghost's defensive response.
+
 ## [0.8.0] - 2026-02-15
 
 ### Added
