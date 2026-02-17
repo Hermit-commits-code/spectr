@@ -1,0 +1,10 @@
+# Include the license and README
+include LICENSE
+include README.md
+
+# Exclude the assets folder and all its contents from the final build
+recursive-exclude assets *
+
+# Exclude any hidden system files or cache
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
