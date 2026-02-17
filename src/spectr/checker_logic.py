@@ -1,4 +1,6 @@
+import math
 import re
+from collections import Counter
 from datetime import datetime, timezone
 
 import requests
@@ -7,6 +9,7 @@ SCORING_WEIGHTS = {
     "typosquatting": 100,  # Critical: Immediate 0 score
     "resurrection": 40,  # High: Potential hijacking
     "payload_risk": 50,  # High: Script/Binary found in manifest
+    "obfuscation": 30,  # Medium:
     "new_account": 30,  # Medium: Lack of history
     "hidden_identity": 10,  # Low: Lack of transparency
     "low_velocity": 10,  # Low: Stale package
@@ -243,39 +246,47 @@ def scan_payload(package_name, data):
     releases = data.get("releases", {}).get(version, [])
 
     suspicious_files = []
+    entropy_flags = []
+
     for r in releases:
         filename = r.get("filename", "").lower()
-        # Flag binary or script extensions that don't belong in a pure Python pkg
+        # Extension check
         if any(ext in filename for ext in [".exe", ".msi", ".sh", ".bat", ".bin"]):
             suspicious_files.append(filename)
 
-    passed = len(suspicious_files) == 0
-    meta = {"suspicious_extensions": suspicious_files if suspicious_files else "none"}
+        # Entropy check on filename (as a proxy for obfuscated names)
+        if calculate_entropy(filename) > 5.0:
+            entropy_flags.append(filename)  # Track the specific files
 
+    passed = len(suspicious_files) == 0 and len(entropy_flags) == 0
+    meta = {
+        "suspicious_extensions": suspicious_files if suspicious_files else "none",
+        "high_entropy_files": entropy_flags if entropy_flags else "none",
+    }
     return passed, meta
 
 
 def calculate_spectr_score(results):
-    """v0.18.1: Aggregates forensic heuristics into a 0-100 risk score."""
+    """v0.20.0: Aggregates advanced heuristics into a 0-100 risk score."""
     score = 100
 
     # 1. Critical: Typosquatting (Manual override to 0)
-    # We check if 'typosquatting' exists and its first element (boolean) is True
     if results.get("typosquatting", (False,))[0]:
         return 0
 
-    # 2. Heuristic Penalties
-    # We map the results key to its corresponding weight
+    # 2. Heuristic Penalties mapping
+    # Note: 'Identity' and 'Obfuscation' are now part of this unified mapping
     penalties = {
         "Resurrection": "resurrection",
         "Payload": "payload_risk",
         "Velocity": "low_velocity",
         "Reputation": "new_account",
         "Identity": "hidden_identity",
+        "Obfuscation": "obfuscation",
     }
 
     for res_key, weight_key in penalties.items():
-        # Get the (passed, meta) tuple; default to (True, {}) if missing
+        # Default to (True, {}) if a check is missing from the results
         passed, _ = results.get(res_key, (True, {}))
 
         if not passed:
@@ -283,3 +294,27 @@ def calculate_spectr_score(results):
 
     # Ensure the score stays within bounds [0, 100]
     return max(0, min(100, score))
+
+
+def calculate_entropy(data):
+    """v0.20.0: Calculates Shannon Entropy to detect obfuscation."""
+    if not data:
+        return 0
+    occurances = Counter(data)
+    length = len(data)
+    return -sum(
+        (count / length) * math.log2(count / length) for count in occurances.values()
+    )
+
+
+def check_author_reputation(data):
+    """v0.20.0: Analyzes author metadata for risk patterns."""
+    info = data.get("info", {})
+    author = info.get("author", "").strip()
+    email = info.get("author_email", "").strip()
+
+    # Flag missing contact info - a classic 'hidden identity' trait
+    if not author or not email:
+        return False, {"reason": "Missing author or email"}
+
+    return True, {"author": author, "email": email}

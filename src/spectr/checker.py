@@ -12,6 +12,7 @@ from rich.table import Table
 from spectr.cache import CacheManager
 from spectr.checker_logic import (
     calculate_spectr_score,
+    check_author_reputation,
     check_for_typosquatting,
     check_resurrection,
     disable_hooks,
@@ -403,14 +404,21 @@ def main():
                 visited.add(current_pkg)
                 continue
             # ---------------------------
+            payload_passed, payload_meta = scan_payload(current_pkg, data)
             # Run Forensics
             pkg_findings = {
                 "Reputation": check_reputation(current_pkg, data),
                 "Velocity": check_velocity(data),
-                "Identity": check_identity(current_pkg, data),
+                "Identity": check_author_reputation(
+                    data
+                ),  # Use the new v0.20.0 logic here
                 "Structure": check_structure(data),
-                "Resurrection": check_resurrection(data),  # New heuristic live!
-                "Payload": scan_payload(current_pkg, data),
+                "Resurrection": check_resurrection(data),
+                "Payload": (payload_passed, payload_meta),
+                "Obfuscation": (
+                    payload_meta.get("high_entropy_files") == "none",
+                    payload_meta,
+                ),
             }
             # Calculate the score for this specific package
             pkg_score = calculate_spectr_score(pkg_findings)
