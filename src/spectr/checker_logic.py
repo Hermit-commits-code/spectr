@@ -3,155 +3,35 @@ import re
 from collections import Counter
 from datetime import datetime, timezone
 
-import requests
-
+# --- SCORING CONFIGURATION ---
+# v0.22: Refined weights to prioritize execution risk over metadata gaps
 SCORING_WEIGHTS = {
     "typosquatting": 100,  # Critical: Immediate 0 score
-    "resurrection": 40,  # High: Potential hijacking
-    "payload_risk": 50,  # High: Script/Binary found in manifest
-    "obfuscation": 30,  # Medium:
-    "new_account": 30,  # Medium: Lack of history
-    "hidden_identity": 10,  # Low: Lack of transparency
+    "sandbox_violation": 70,  # High: Attempted restricted access
+    "payload_risk": 50,  # High: Suspicious binaries/scripts
+    "resurrection": 40,  # Medium/High: Potential hijacked account
+    "obfuscation": 30,  # Medium: High-entropy filenames/code
+    "new_account": 20,  # Low/Medium: Lack of history
+    "hidden_identity": 10,  # Low: Missing author contact
     "low_velocity": 10,  # Low: Stale package
 }
 
-
-def is_package_suspicious(package_name: str, age_threshold_hours: int = 72) -> bool:
-    """
-    Check if a PyPI package is younger than the specified age threshold.
-
-    Args:
-        package_name (str): The name of the package to check.
-        age_threshold_hours (int): The age threshold in hours (default is 72).
-
-    Returns:
-        bool: True if the package is suspicious (younger than threshold), False otherwise.
-    """
-    url = f"https://pypi.org/pypi/{package_name}/json"
-
-    try:
-        response = requests.get(url, timeout=5)
-        if response.status_code == 404:
-            # Not found on PyPI = impossible to install, so not 'suspicious' yet
-            return False
-
-        data = response.json()
-
-        # Get the first release's upload time
-        releases = data.get("releases", {})
-        if not releases:
-            return False
-
-        first_version = list(releases.keys())[0]
-        upload_time_str = releases[first_version][0]["upload_time"]
-
-        upload_time = datetime.fromisoformat(upload_time_str).replace(
-            tzinfo=timezone.utc
-        )
-        now = datetime.now(timezone.utc)
-
-        age_in_hours = (now - upload_time).total_seconds() / 3600
-
-        return age_in_hours < age_threshold_hours
-
-    except Exception:
-        return False
+# --- FORENSIC ENGINES ---
 
 
-def disable_hooks():
-    """v0.11.0: Removes Spectr aliases from shell configuration files."""
-    import os
-
-    shell_path = os.environ.get("SHELL", "")
-    rc_file = os.path.expanduser("~/.zshrc" if "zsh" in shell_path else "~/.bashrc")
-
-    if not os.path.exists(rc_file):
-        print(f"❌ Configuration file {rc_file} not found.")
-        return
-
-    try:
-        with open(rc_file, "r") as f:
-            lines = f.readlines()
-
-        # Filter out any lines related to Spectr
-        new_lines = [
-            line
-            for line in lines
-            if "Spectr" not in line
-            and "pip-install" not in line
-            and "uv-add" not in line
-        ]
-
-        if len(lines) == len(new_lines):
-            print("ℹ️  No Spectr hooks found to disable.")
-        else:
-            with open(rc_file, "w") as f:
-                f.writelines(new_lines)
-            print(
-                f"🛡️  Spectr hooks removed from {rc_file}. Restart your terminal to apply changes."
-            )
-    except Exception as e:
-        print(f"❌ Failed to disable hooks: {e}")
+def calculate_entropy(data: str) -> float:
+    """Calculates Shannon Entropy to detect obfuscation or packed payloads."""
+    if not data:
+        return 0.0
+    occurances = Counter(data)
+    length = len(data)
+    return -sum(
+        (count / length) * math.log2(count / length) for count in occurances.values()
+    )
 
 
-def check_for_typosquatting(package_name):
-    """
-    v0.12.0: Checks if package_name is a typosquatting attempt.
-    Returns: (bool, str or None) -> (is_malicious, target_name)
-    """
-    # High-value targets to protect
-    SQUAT_TARGETS = {
-        # Core Infrastructure
-        "requests": 1,
-        "urllib3": 1,
-        "pip": 1,
-        "setuptools": 1,
-        # Cloud & DevOps
-        "boto3": 1,
-        "botocore": 1,
-        "ansible": 1,
-        "docker": 1,
-        "pulumi": 1,
-        # Data Science & AI
-        "pandas": 1,
-        "numpy": 1,
-        "scipy": 1,
-        "matplotlib": 1,
-        "tensorflow": 2,
-        "torch": 1,
-        "scikit-learn": 2,
-        "openai": 1,
-        # Web Frameworks
-        "django": 1,
-        "flask": 1,
-        "fastapi": 1,
-        "pydantic": 1,
-        # Security
-        "cryptography": 2,
-        "pyjwt": 1,
-        "passlib": 1,
-    }
-
-    name = package_name.lower()
-
-    for target, threshold in SQUAT_TARGETS.items():
-        # Skip if it's an exact match (that's the real package)
-        if name == target:
-            continue
-
-        # Simple Levenshtein implementation (or use Levenshtein library if installed)
-        distance = levenshtein_distance(name, target)
-
-        if distance <= threshold:
-            print(f"🚨 ALERT: Suspected typosquatting for '{name}'.")
-            print(f"   It is remarkably similar to the popular package '{target}'.")
-            return True, target
-
-    return False, None
-
-
-def levenshtein_distance(s1, s2):
-    """Simple iterative Levenshtein distance calculation."""
+def levenshtein_distance(s1: str, s2: str) -> int:
+    """Iterative Levenshtein distance for typosquatting detection."""
     if len(s1) < len(s2):
         return levenshtein_distance(s2, s1)
     if len(s2) == 0:
@@ -166,155 +46,192 @@ def levenshtein_distance(s1, s2):
             substitutions = previous_row[j] + (c1 != c2)
             current_row.append(min(insertions, deletions, substitutions))
         previous_row = current_row
-
     return previous_row[-1]
 
 
-def parse_requirement_name(req_string):
-    """
-    Extracts just the package name from a dependency string.
-    Example: 'requests (>=2.28.0) ; extra == "security"' -> 'requests'
-    """
-    if not req_string:
-        return None
-    # Match the first sequence of alphanumeric characters/hyphens/underscores
-    match = re.match(r"^([a-zA-Z0-9\-\._]+)", req_string)
-    return match.group(1) if match else None
+# --- HEURISTICS ---
 
 
-def get_dependencies(pypi_data):
-    """
-    Extracts a list of clean dependency names from PyPI metadata.
-    """
-    info = pypi_data.get("info", {})
-    requires = info.get("requires_dist") or []
-
-    clean_deps = []
-    for req in requires:
-        # Filter out 'extras' like [docs], [test] to avoid bloat
-        if ";" in req and "extra ==" in req:
+def check_for_typosquatting(package_name: str):
+    """v0.22: Consolidated engine protecting high-value targets."""
+    targets = {
+        "requests": 1,
+        "urllib3": 1,
+        "pip": 1,
+        "boto3": 1,
+        "pandas": 1,
+        "numpy": 1,
+        "tensorflow": 2,
+        "torch": 1,
+        "django": 1,
+        "flask": 1,
+        "cryptography": 2,
+        "pydantic": 1,
+        "openai": 1,
+        "ansible": 1,
+    }
+    name = package_name.lower()
+    for target, threshold in targets.items():
+        if name == target:
             continue
-
-        name = parse_requirement_name(req)
-        if name:
-            clean_deps.append(name.lower())
-
-    return list(set(clean_deps))  # Return unique names
+        if levenshtein_distance(name, target) <= threshold:
+            return True, target
+    return False, None
 
 
-def check_resurrection(data):
-    """v0.18.1: Detects account resurrection with 'Giant's Immunity'."""
+def check_resurrection(data: dict):
+    """v0.22: Detects dormant account activity with Giant's Immunity."""
     releases = data.get("releases", {})
     if len(releases) < 2:
-        return True, {"max_dormancy_days": 0, "recent_activity": True}
+        return True, {"dormancy": 0, "status": "New"}
 
-    upload_times = []
-    for pkg_version in releases:
-        for file_info in releases[pkg_version]:
-            upload_times.append(
-                datetime.fromisoformat(file_info["upload_time"].replace("Z", ""))
-            )
+    # Giant's Immunity: Established projects are exempt from dormancy flags
+    if len(releases) > 50:
+        return True, {"releases": len(releases), "status": "Immune (Giant)"}
 
-    upload_times.sort()
+    upload_times = sorted(
+        [
+            datetime.fromisoformat(f["upload_time"].replace("Z", ""))
+            for r in releases.values()
+            for f in r
+        ]
+    )
 
-    # Calculate gaps between consecutive releases
     gaps = [
         (upload_times[i] - upload_times[i - 1]).days
         for i in range(1, len(upload_times))
     ]
     max_gap = max(gaps) if gaps else 0
+    last_age = (datetime.now(timezone.utc).replace(tzinfo=None) - upload_times[-1]).days
 
-    # Check if the most recent release was very recent (last 14 days)
-    last_release_age = (
-        datetime.now(timezone.utc).replace(tzinfo=None) - upload_times[-1]
-    ).days
-    is_recent = last_release_age < 14
-
-    meta = {"max_dormancy_days": max_gap, "recent_activity": is_recent}
-
-    # LOGIC: Flag only if there's a huge gap followed by a sudden burst,
-    # BUT give immunity to established "Giants" (more than 30 releases).
-    if max_gap > 730 and is_recent and len(releases) < 30:
-        return False, meta
-
-    return True, meta
+    # Flag if dormant > 2 years then sudden update
+    if max_gap > 730 and last_age < 14:
+        return False, {"max_gap": max_gap, "last_release": last_age}
+    return True, {"max_gap": max_gap}
 
 
-def scan_payload(package_name, data):
+def check_author_reputation(data: dict):
+    """v0.22: Analyzes author metadata with metadata relaxation for Giants."""
+    info = data.get("info", {}) or {}
+    releases = data.get("releases", {})
+    author = (info.get("author") or "").strip()
+    email = (info.get("author_email") or "").strip()
+
+    if len(releases) > 30:
+        return True, {"author": author or "Project Lead", "status": "Immune (Giant)"}
+
+    if not author or not email:
+        return False, {"reason": "Missing author or email contact"}
+    return True, {"author": author, "email": email}
+
+
+def check_reputation(package_name: str, data: dict):
+    """v0.22: Detects bot-driven download inflation."""
+    info = data.get("info", {}) or {}
+    downloads = info.get("downloads", {}).get("last_month", 0)
+    releases = data.get("releases", {})
+
+    upload_times = [
+        datetime.fromisoformat(f["upload_time"].replace("Z", ""))
+        for r in releases.values()
+        for f in r
+        if r
+    ]
+    if not upload_times:
+        return True, {"downloads": downloads, "age": 0}
+
+    days_old = (
+        datetime.now(timezone.utc).replace(tzinfo=None) - min(upload_times)
+    ).days or 1
+
+    # High downloads + Very young = Suspected Bot Inflation
+    if downloads > 10000 and days_old <= 7:
+        return False, {"downloads": downloads, "days_old": days_old}
+    return True, {"downloads": downloads, "days_old": days_old}
+
+
+def scan_payload(package_name: str, data: dict):
+    """v0.22: Scans manifest for dangerous file types and obfuscated names."""
     info = data.get("info", {})
     version = info.get("version")
     releases = data.get("releases", {}).get(version, [])
 
-    suspicious_files = []
-    entropy_flags = []
+    suspicious = [
+        r.get("filename")
+        for r in releases
+        if any(
+            ext in r.get("filename", "").lower()
+            for ext in [".exe", ".msi", ".sh", ".bat", ".bin"]
+        )
+    ]
+    entropy = [
+        r.get("filename")
+        for r in releases
+        if calculate_entropy(r.get("filename", "")) > 5.0
+    ]
 
-    for r in releases:
-        filename = r.get("filename", "").lower()
-        # Extension check
-        if any(ext in filename for ext in [".exe", ".msi", ".sh", ".bat", ".bin"]):
-            suspicious_files.append(filename)
-
-        # Entropy check on filename (as a proxy for obfuscated names)
-        if calculate_entropy(filename) > 5.0:
-            entropy_flags.append(filename)  # Track the specific files
-
-    passed = len(suspicious_files) == 0 and len(entropy_flags) == 0
-    meta = {
-        "suspicious_extensions": suspicious_files if suspicious_files else "none",
-        "high_entropy_files": entropy_flags if entropy_flags else "none",
+    passed = not (suspicious or entropy)
+    return passed, {
+        "suspicious": suspicious or "none",
+        "high_entropy": entropy or "none",
     }
-    return passed, meta
 
 
-def calculate_spectr_score(results):
-    """v0.20.0: Aggregates advanced heuristics into a 0-100 risk score."""
+# --- UTILITIES ---
+
+
+def get_dependencies(pypi_data: dict) -> list:
+    """Extracts a clean list of unique dependency names."""
+    requires = pypi_data.get("info", {}).get("requires_dist") or []
+    clean_deps = []
+    for req in requires:
+        if ";" in req and "extra ==" in req:
+            continue
+        match = re.match(r"^([a-zA-Z0-9\-\._]+)", req)
+        if match:
+            clean_deps.append(match.group(1).lower())
+    return list(set(clean_deps))
+
+
+def calculate_spectr_score(results: dict) -> int:
+    """v0.22: Aggregates heuristics into a final safety score (0-100)."""
     score = 100
 
-    # 1. Critical: Typosquatting (Manual override to 0)
-    if results.get("typosquatting", (False,))[0]:
+    # Critical override
+    if results.get("Typosquatting", (False,))[0]:
         return 0
 
-    # 2. Heuristic Penalties mapping
-    # Note: 'Identity' and 'Obfuscation' are now part of this unified mapping
-    penalties = {
+    mapping = {
         "Resurrection": "resurrection",
         "Payload": "payload_risk",
-        "Velocity": "low_velocity",
         "Reputation": "new_account",
         "Identity": "hidden_identity",
+        "Sandbox": "sandbox_violation",
         "Obfuscation": "obfuscation",
     }
 
-    for res_key, weight_key in penalties.items():
-        # Default to (True, {}) if a check is missing from the results
-        passed, _ = results.get(res_key, (True, {}))
-
+    for key, weight_key in mapping.items():
+        passed, _ = results.get(key, (True, {}))
         if not passed:
             score -= SCORING_WEIGHTS.get(weight_key, 0)
 
-    # Ensure the score stays within bounds [0, 100]
     return max(0, min(100, score))
 
 
-def calculate_entropy(data):
-    """v0.20.0: Calculates Shannon Entropy to detect obfuscation."""
-    if not data:
-        return 0
-    occurances = Counter(data)
-    length = len(data)
-    return -sum(
-        (count / length) * math.log2(count / length) for count in occurances.values()
+def disable_hooks():
+    """v0.11.0: Removes Spectr interception logic from shell RC files."""
+    import os
+
+    rc_file = os.path.expanduser(
+        "~/.zshrc" if "zsh" in os.environ.get("SHELL", "") else "~/.bashrc"
     )
-
-
-def check_author_reputation(data):
-    """v0.20.0: Analyzes author metadata for risk patterns."""
-    info = data.get("info", {})
-    author = info.get("author", "").strip()
-    email = info.get("author_email", "").strip()
-
-    # Flag missing contact info - a classic 'hidden identity' trait
-    if not author or not email:
-        return False, {"reason": "Missing author or email"}
-
-    return True, {"author": author, "email": email}
+    if not os.path.exists(rc_file):
+        return
+    try:
+        with open(rc_file, "r") as f:
+            lines = [l for l in f.readlines() if "Spectr" not in l and "uv()" not in l]
+        with open(rc_file, "w") as f:
+            f.writelines(lines)
+        print(f"🛡️  Hooks removed from {rc_file}.")
+    except Exception as e:
+        print(f"❌ Error disabling hooks: {e}")

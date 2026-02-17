@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.22.0] - 2026-02-17
+
+### Added
+
+- **Giant's Immunity**: Established projects (>50 releases) are now exempt from metadata-gap flagging.
+- **Interactive Audit**: The `audit` command now prompts users to whitelist high-risk packages.
+- **Levenshtein Engine**: Integrated a more robust typosquatting detection algorithm.
+
+### Changed
+
+- **Architecture**: Consolidated `similarity.py` and `interceptor.py` into the core `checker` modules.
+- **UI**: Refined forensic reports to correctly display PASS/FAIL status for typosquatting.
+
+### Removed
+
+- **Redundancy**: Deleted `src/spectr/similarity.py` and `src/spectr/interceptor.py`.
+
+## [0.21.0] - 2026-02-16
+
+### Added
+
+- **The Persistence Layer**: Integrated SQLite-based audit caching (`~/.spectr/audit_cache.db`).
+- **Sandbox v2**: Implemented `RestrictedPython` for safe metadata snippet execution.
+
+## [0.20.0] - 2026-02-16
+
+### Added
+
+- **Weighted Scoring**: Initial implementation of the 0-100 risk scoring algorithm.
+- **Identity Heuristics**: Added detection for missing author/email metadata.
+
 ## [0.19.0] - 2026-02-16
 
 ### Added

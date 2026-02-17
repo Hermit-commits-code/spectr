@@ -1,79 +1,152 @@
 # 🛡️ Spectr
 
-![Version](https://img.shields.io/badge/version-0.19.0-blue)
+![Version](https://img.shields.io/badge/version-0.22.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
-![Security](https://img.shields.io/badge/forensics-enabled-red)
 
-**Proactive Supply-Chain Defense for the Modern Python Ecosystem.**
+Proactive supply-chain defense for the modern Python ecosystem.
 
-Spectr is a high-speed security gatekeeper designed to intercept malicious packages _before_ they reach your local environment. It performs multi-layered forensic analysis on PyPI metadata to detect typosquatting, skeleton packages, and reputation anomalies.
+forensic analysis of PyPI packages and metadata. It detects typosquatting,
+reputation anomalies, account hijackings (resurrection attacks), and
+malicious payloads before they ever reach your local environment.
+
+## Table of Contents
+
+- [🛡️ Spectr](#️-spectr)
+  - [Table of Contents](#table-of-contents)
+  - [🚀 Quick Start](#-quick-start)
+    - [🔍 Instant Audit](#-instant-audit)
+    - [🛠️ Permanent Protection](#️-permanent-protection)
+  - [📦 Installation \& System Footprint](#-installation--system-footprint)
+  - [🧠 Forensic Capabilities (v0.22)](#-forensic-capabilities-v022)
+  - [🛠️ Usage \& Administration](#️-usage--administration)
+  - [🛡️ Trust \& Whitelisting](#️-trust--whitelisting)
+  - [📂 Project Structure](#-project-structure)
+  - [📊 Feature Comparison](#-feature-comparison)
+  - [⚖️ License](#️-license)
 
 ---
 
-## 🚀 Installation & Usage
+## 🚀 Quick Start
 
-### Instant Audit (via uvx)
+### 🔍 Instant Audit
 
-Analyze any package without installing Spectr:
+Analyze a package instantly using `uvx`:
 
 ```bash
 uvx spectr check <package_name>
 ```
 
-### Permanent Protection
+### 🛠️ Permanent Protection
 
-Install Spectr and inject security hooks into your shell (pip and uv will be automatically audited):
-
-```bash
-uv pip install spectr
-spectr-init
-```
-
-## Advanced Diagnostics (New in v0.12.0)
-
-### Detailed forensic breakdown
+Install Spectr and enable shell hooks to automatically intercept `uv` and
+`pip` commands:
 
 ```bash
-uvx spectr check <package> --verbose
+pip install spectr
+spectr --install-hook
 ```
 
-### Machine-readable output for CI/CD pipelines
+Once installed, running `uv add <package>` (or other wrapped commands) will
+trigger a Spectr audit. If a package is flagged, the installation is blocked
+until you manually authorize it.
+
+## 📦 Installation & System Footprint
+
+Spectr maintains a minimal and predictable footprint on the host system.
+
+1. Software installation
+
+   Installed via `pip` (or `uv`) into your environment's site-packages:
+
+   ```text
+   Path: .venv/lib/python3.x/site-packages/spectr/
+   ```
+
+2. Local configuration & data
+
+   Spectr stores state and persistent data under the user's home directory:
+   - `Directory: ~/.spectr/`
+   - `audit_cache.db`: a local SQLite database storing forensic scores for
+     24 hours to optimize performance.
+   - `~/.spectr-whitelist`: a list of authorized packages.
+   - `~/.spectr-whitelist.sig`: a SHA-256 signature file ensuring whitelist
+     integrity against unauthorized tampering.
+
+3. Shell interception
+
+   Running `spectr --install-hook` appends a lightweight wrapper to your shell
+   profile (`~/.zshrc` or `~/.bashrc`). The wrapper invokes Spectr to verify
+   package safety before allowing `uv add` / `pip install` to proceed.
+
+## 🧠 Forensic Capabilities (v0.22)
+
+Spectr uses a weighted 0–100 Security Score to evaluate risk and includes:
+
+- **Typosquatting Detection** — Uses Levenshtein distance to catch look-alike
+  packages (e.g., `reqests` vs `requests`).
+- **Giant's Immunity** — Recognizes high-reputation projects (e.g., pandas,
+  numpy) to reduce false positives for established infrastructure.
+- **Resurrection Tracking** — Flags dormant accounts that suddenly push
+  updates after years of inactivity (possible account hijacking).
+- **Bot-Inflation Protection** — Detects "social proof" attacks where
+  download counts are artificially inflated on new packages.
+- **Sandboxed Execution** — Safely evaluates metadata and script snippets in
+  a restricted environment.
+
+## 🛠️ Usage & Administration
+
+Common commands:
 
 ```bash
-uvx spectr check <package> --json
+spectr audit              # Scan the current project's pyproject.toml
+spectr check <package>    # Perform a deep forensic scan on a specific package
+spectr --install-hook     # Inject security wrappers into ~/.bashrc or ~/.zshrc
+spectr --disable          # Remove shell interceptions and restore defaults
+spectr -r --max-depth 2   # Perform a recursive audit of a dependency tree
 ```
 
-## 🛠️ Security Heuristics
+## 🛡️ Trust & Whitelisting
 
-Spectr uses a tiered defense-in-depth model:
+Spectr maintains a cryptographically signed whitelist at `~/.spectr-whitelist`.
 
-1. Typosquatting Engine: Detects look-alike packages targeting popular libraries.
-2. Structural Analysis: Identifies "Skeleton" packages (sdist < 2KB) used for staging exploits.
-3. Identity Verification: Flags brand-jacking (e.g., official prefixes maintained by generic emails).
-4. Behavioral Velocity: Monitors release bursts that indicate automated spamming or bot-driven reputation inflation.
+- If a package is flagged during an audit, you can choose to trust it locally
+  by adding it to the whitelist.
+- The whitelist is signed using a SHA-256 hash to prevent unauthorized
+  tampering.
 
-## ⚙️ Administration
+## 📂 Project Structure
 
-Command Description
+For developers and auditors, the codebase follows a consolidated, modular
+architecture:
 
-| Command       | Outcome                                             |
-| ------------- | --------------------------------------------------- |
-| spectr-init   | Injects security aliases into .bashrc / .zshrc.     |
-| spectr-off    | Emergency bypass: removes all shell interceptions   |
-| spectr sign   | Re-authorizes a manually edited whitelist.          |
-| spectr --json | Outputs analysis results in structured JSON format. |
+```text
+spectr/
+├── pyproject.toml         # Project metadata and entry points
+├── src/
+│   └── spectr/            # Source root
+│       ├── __init__.py
+│       ├── checker.py     # Main CLI & whitelist management
+│       ├── checker_logic.py # Forensic heuristics & scoring
+│       ├── cache.py       # SQLite cache manager
+│       └── sandbox.py     # Restricted execution environment
+└── CASE_STUDY.md          # Technical deep-dive on threat models
+```
 
-## 🛡️ Integrity
+(See attachments for additional documentation and the CASE_STUDY.)
 
-Spectr maintains a signed whitelist at ~/.spectr-whitelist. Unauthorized manual modifications trigger an integrity alert, preventing malware from self-whitelisting.
+## 📊 Feature Comparison
 
-## Why Spectr?
+| Feature         |  Standard Package Managers |              Spectr (v0.22.0) |
+| --------------- | -------------------------: | ----------------------------: |
+| Primary Goal    |  Installation & Resolution |          Supply-Chain Defense |
+| Trust Model     | Implicit (Trusts Registry) |        Zero-Trust (Heuristic) |
+| Deep Scan       |                         No | Recursive Dependency Auditing |
+| False Positives |    High (on metadata gaps) |        Low (Giant's Immunity) |
+| Interception    |                       None |         Real-time Shell Hooks |
 
-| Feature          | `pip` / `uv`                         | Spectr (v0.16.0+)                         |
-| :--------------- | :----------------------------------- | :---------------------------------------- |
-| **Primary Goal** | Installation & Dependency Resolution | Supply-Chain Defense & Forensics          |
-| **Trust Model**  | Implicit (Trusts PyPI Registry)      | Zero-Trust (Heuristic Verification)       |
-| **Deep Scan**    | None (Resolves versions only)        | **Recursive Auditor** (Scans entire tree) |
-| **Security**     | Reactive (Scan after install)        | **Proactive** (Scan before download)      |
-| **Output**       | Progress Bars                        | Forensic Reports & Dependency Trees       |
+## ⚖️ License
+
+Distributed under the MIT License. See the `LICENSE` file for details.
+
+Maintained by Joseph Chu — Spectr GitHub
