@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.23.0] - 2026-02-18
+
+### Added
+- **Keyword-Stuffing Detection**: Typosquatting engine now detects suffix attacks (e.g., `requests-ultra`).
+- **External Configuration**: Initial abstraction of target brands for future API/Config file support.
+
+### Removed
+- **Sandboxing**: Purged `RestrictedPython` and `sandbox.py` to eliminate arbitrary execution risks.
+- **Dependencies**: Removed `restrictedpython` from `pyproject.toml`.
+
+## [0.22.1] - 2026-02-17
+
+### Changed
+- **Identity Heuristics**: Fixed `KeyError` in author reputation checks and improved brand-jacking detection.
+- **Namespace**: Finalized migration from `spectr` to `skopos` in all core logic.
+
 ## [0.22.0] - 2026-02-17
 
 ### Added
