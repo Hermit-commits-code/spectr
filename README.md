@@ -151,3 +151,88 @@ Skopos uses a weighted scoring system to evaluate risk:
 ## License
 
 MIT. Built for developers who value their ssh keys and environment variables.
+
+## Configuration
+
+Skopos supports a user-overridable configuration file at `~/.skopos/config.toml`.
+You can bootstrap a template with:
+
+```bash
+skopos config init
+```
+
+Key configuration options (defaults shown in `etc/skopos_default_config.toml`):
+
+- `targets`: a table mapping high-value package names to a Levenshtein threshold (integer).
+- `keyword_extra_chars`: how many extra characters beyond a brand name still trigger a keyword-stuffing flag.
+- `scoring_weights`: numeric weights used when aggregating heuristic failures into a final score.
+
+Example `~/.skopos/config.toml` snippet:
+
+```toml
+[targets]
+requests = 1
+openai = 1
+
+keyword_extra_chars = 6
+
+[scoring_weights]
+typosquatting = 120
+payload_risk = 60
+```
+
+If the file is missing or malformed, Skopos falls back to safe defaults so behavior does not change.
+
+## Examples (Good vs Malicious)
+
+These examples show typical output from `uvx skopos check <package>` and what happens when you run `uv add <package>` with the shim installed.
+
+Good package (example):
+
+```bash
+$ uvx skopos check requests
+🔍 Auditing: requests
+------------------------------------------------------------
+✅ Typosquatting: PASS
+✅ Identity:      PASS (Known maintainer)
+✅ Payload:       Clean
+------------------------------------------------------------
+✅ SKOPOS SCORE: 95/100 (SAFE)
+```
+
+Malicious package (example):
+
+```bash
+$ uvx skopos check evil-package
+🔍 Auditing: evil-package
+------------------------------------------------------------
+❌ Typosquatting: FLAG (Match: requests - Keyword match)
+⚠️  Identity:      Unknown (New Account / Unverified)
+✅ Payload:       Clean
+------------------------------------------------------------
+🚨 SKOPOS SCORE: 10/100 (MALICIOUS)
+```
+
+What happens during `uv add` when the shim is active:
+
+- If the package passes the check, `uv add` proceeds as normal.
+- If the package is flagged (non-zero failure), the shim aborts the install and returns a non-zero exit code. Example:
+
+```bash
+$ uv add evil-package
+[Skopos] Security Gate: Installation aborted due to high risk score.
+# installation aborted; package not added
+```
+
+## Which commands are wrapped
+
+Skopos provides two ways to intercept package installs:
+
+- The shell shim script `scripts/skopos-uv.sh` (recommended for `uv` users) intercepts `uv add` and `uv run` and performs a pre-install audit.
+- The built-in `--install-hook` (via `skopos --install-hook`) installs a minimal `uv()` wrapper into your shell rc which currently intercepts `uv add` before invoking the real `uv` command.
+
+Both approaches are conservative and will skip blocking behavior if the `skopos` CLI is not available on PATH (in which case they print a warning and allow the underlying command to continue).
+
+---
+
+If you want, I can also add annotated screenshots or richer example logs for CI usage and a short section describing how to tune thresholds for your organization.
