@@ -73,6 +73,26 @@ def verify_whitelist_integrity():
         return current_hash == f.read().strip()
 
 
+def check_velocity(pypi_data: dict):
+    """Compatibility wrapper used by older tests to check project velocity.
+
+    Returns (status, meta) where meta includes the number of releases.
+    """
+    # Simple velocity heuristic: many releases in a short span is suspicious
+    releases = pypi_data.get("releases", {})
+    num_releases = len(releases)
+
+    # If the project has an unusually high number of rapid releases, flag it
+    if num_releases >= 20:
+        return False, {"releases": num_releases}
+
+    # Otherwise fall back to the resurrection logic for more nuanced checks
+    status, meta = check_resurrection(pypi_data)
+    meta_out = dict(meta) if isinstance(meta, dict) else {"info": meta}
+    meta_out["releases"] = num_releases
+    return status, meta_out
+
+
 # --- FORENSIC ENGINE ---
 
 
