@@ -1,170 +1,153 @@
-# 🛡️ Skopos
+[![PyPI version](https://img.shields.io/pypi/v/skopos-audit.svg)](https://pypi.org/project/skopos-audit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-![Version](https://img.shields.io/badge/version-0.23.0-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Build](https://img.shields.io/badge/build-passing-brightgreen)
+# 🛡️ Skopos (v0.23.0)
 
-Proactive supply-chain defense for the modern Python ecosystem.
+## Overview
 
-forensic analysis of PyPI packages and metadata. It detects typosquatting,
-reputation anomalies, account hijackings (resurrection attacks), and
-malicious payloads before they ever reach your local environment.
+The Zero-Trust Gatekeeper for your Python Environment.
+
+Skopos (Greek for "watcher/lookout") is a high-speed forensic audit tool designed to stop supply-chain attacks before they touch your disk. It sits between you and the internet, ensuring that every `uv add` or `pip install` is safe, verified, and free of "keyword-stuffing" or "brand-jacking" attempts.
 
 ## Table of Contents
 
-- [🛡️ Skopos](#️-skopos)
-  - [Table of Contents](#table-of-contents)
-  - [🚀 Quick Start](#-quick-start)
-    - [🔍 Instant Audit](#-instant-audit)
-    - [🛠️ Permanent Protection](#️-permanent-protection)
-  - [📦 Installation \& System Footprint](#-installation--system-footprint)
-  - [🧠 Forensic Capabilities (v0.22)](#-forensic-capabilities-v022)
-  - [🛠️ Usage \& Administration](#️-usage--administration)
-  - [🛡️ Trust \& Whitelisting](#️-trust--whitelisting)
-  - [📂 Project Structure](#-project-structure)
-  - [📊 Feature Comparison](#-feature-comparison)
-  - [🗺️ Roadmap \& Future Ideas](#️-roadmap--future-ideas)
-    - [v0.23: The Intelligence Layer](#v023-the-intelligence-layer)
-    - [v1.0: Enterprise Governance](#v10-enterprise-governance)
-  - [⚖️ License](#️-license)
+- [Overview](#overview)
+- [Why Skopos?](#why-skopos)
+- [Installation](#installation)
+	- [For Pip users](#for-pip-users)
+	- [For UV users (recommended workflow)](#for-uv-users-recommended-workflow)
+- [Automatic Bouncer (Shim)](#automatic-bouncer-shim)
+- [Usage & Examples](#usage--examples)
+- [Performance](#performance)
+- [Forensic Heuristics](#forensic-heuristics)
+- [License](#license)
 
----
+## Why Skopos?
 
-## 🚀 Quick Start
+Standard package managers are built for speed, not security. They assume that if a package exists on PyPI, it’s safe to run. They are wrong.
 
-### 🔍 Instant Audit
+Skopos protects you from:
 
-Analyze a package instantly using `uvx`:
+- **Keyword Stuffing:** Malicious packages like `requests-ultra` or `pip-security-patch`.
+- **Brand-jacking:** Fake versions of popular tools (e.g., `google-auth-v2` by an unknown dev).
+- **Account Hijacking:** Suddenly active projects after years of silence.
+- **Obfuscated Payloads:** Detection of "packed" or encrypted code in package metadata.
 
-```bash
-uvx skopos check <package_name>
-```
+## Installation
 
-### 🛠️ Permanent Protection
+Choose the workflow that matches your environment. Both approaches are supported — pick one.
 
-Install Skopos and enable shell hooks to automatically intercept `uv` and
-`pip` commands:
+### For Pip users
 
-```bash
-pip install skopos
-skopos --install-hook
-```
+If you prefer standard Python packaging and virtual environments, follow these steps.
 
-Once installed, running `uv add <package>` (or other wrapped commands) will
-trigger a Skopos audit. If a package is flagged, the installation is blocked
-until you manually authorize it.
-
-## 📦 Installation & System Footprint
-
-Skopos maintains a minimal and predictable footprint on the host system.
-
-1. Software installation
-
-   Installed via `pip` (or `uv`) into your environment's site-packages:
-
-   ```text
-   Path: .venv/lib/python3.x/site-packages/skopos/
-   ```
-
-2. Local configuration & data
-
-   Skopos stores state and persistent data under the user's home directory:
-   - `Directory: ~/.skopos/`
-   - `audit_cache.db`: a local SQLite database storing forensic scores for
-     24 hours to optimize performance.
-   - `~/.skopos-whitelist`: a list of authorized packages.
-   - `~/.skopos-whitelist.sig`: a SHA-256 signature file ensuring whitelist
-     integrity against unauthorized tampering.
-
-3. Shell interception
-
-   Running `skopos --install-hook` appends a lightweight wrapper to your shell
-   profile (`~/.zshrc` or `~/.bashrc`). The wrapper invokes Skopos to verify
-   package safety before allowing `uv add` / `pip install` to proceed.
-
-## 🧠 Forensic Capabilities (v0.22)
-
-Skopos uses a weighted 0–100 Security Score to evaluate risk and includes:
-
-- **Typosquatting Detection** — Uses Levenshtein distance to catch look-alike
-  packages (e.g., `reqests` vs `requests`).
-- **Giant's Immunity** — Recognizes high-reputation projects (e.g., pandas,
-  numpy) to reduce false positives for established infrastructure.
-- **Resurrection Tracking** — Flags dormant accounts that suddenly push
-  updates after years of inactivity (possible account hijacking).
-- **Bot-Inflation Protection** — Detects "social proof" attacks where
-  download counts are artificially inflated on new packages.
-- **Sandboxed Execution** — Safely evaluates metadata and script snippets in
-  a restricted environment.
-
-## 🛠️ Usage & Administration
-
-Common commands:
+Create and activate a virtual environment (recommended):
 
 ```bash
-skopos audit              # Scan the current project's pyproject.toml
-skopos check <package>    # Perform a deep forensic scan on a specific package
-skopos --install-hook     # Inject security wrappers into ~/.bashrc or ~/.zshrc
-skopos --disable          # Remove shell interceptions and restore defaults
-skopos -r --max-depth 2   # Perform a recursive audit of a dependency tree
+python -m venv .venv
+source .venv/bin/activate
 ```
 
-## 🛡️ Trust & Whitelisting
+Install Skopos into the active environment:
 
-Skopos maintains a cryptographically signed whitelist at `~/.skopos-whitelist`.
+```bash
+# During development
+pip install -e .
 
-- If a package is flagged during an audit, you can choose to trust it locally
-  by adding it to the whitelist.
-- The whitelist is signed using a SHA-256 hash to prevent unauthorized
-  tampering.
-
-## 📂 Project Structure
-
-For developers and auditors, the codebase follows a consolidated, modular
-architecture:
-
-```text
-skopos/
-├── pyproject.toml         # Project metadata and entry points
-├── src/
-│   └── skopos/            # Source root
-│       ├── __init__.py
-│       ├── checker.py     # Main CLI & whitelist management
-│       ├── checker_logic.py # Forensic heuristics & scoring
-│       ├── cache.py       # SQLite cache manager
-│       └── sandbox.py     # Restricted execution environment
-└── CASE_STUDY.md          # Technical deep-dive on threat models
+# Or install the released package
+pip install skopos-audit
 ```
 
-(See attachments for additional documentation and the CASE_STUDY.)
+Reload your shell if you modified rc files:
 
-## 📊 Feature Comparison
+```bash
+source ~/.bashrc
+# or
+source ~/.zshrc
+```
 
-| Feature         |  Standard Package Managers |              Skopos (v0.22.0) |
-| --------------- | -------------------------: | ----------------------------: |
-| Primary Goal    |  Installation & Resolution |          Supply-Chain Defense |
-| Trust Model     | Implicit (Trusts Registry) |        Zero-Trust (Heuristic) |
-| Deep Scan       |                         No | Recursive Dependency Auditing |
-| False Positives |    High (on metadata gaps) |        Low (Giant's Immunity) |
-| Interception    |                       None |         Real-time Shell Hooks |
+Quick verification for Pip users:
 
-## 🗺️ Roadmap & Future Ideas
+```bash
+which skopos || skopos --version
+```
 
-Skopos is evolving from a local utility into a comprehensive security framework.
+### For UV users (recommended workflow)
 
-### v0.23: The Intelligence Layer
+If you use `uv` as your package manager, Skopos can be installed as an `uv` tool and hooked into `uv add`.
 
-- **Shared Threat Intelligence**: Optional opt-in to report malicious package hashes to a centralized community database.
-- **Enhanced Sandboxing**: Moving beyond `RestrictedPython` to lightweight WASM-based execution for deeper script analysis.
+Install via `uv`:
 
-### v1.0: Enterprise Governance
+```bash
+uv tool install skopos-audit
+```
 
-- **GitOps Policy Sync**: Ability to fetch signed whitelists from a central repository for team-wide security parity.
-- **CI/CD Gating**: Dedicated GitHub Actions and GitLab CI components to block builds containing low-score dependencies.
-- **Detailed Forensic Exports**: Support for SARIF and JSON reporting for integration into SOC/SIEM platforms.- **Detailed Forensic Exports**: Support for SARIF and JSON reporting for integration into SOC/SIEM platforms.
+After installing via `uv`, refresh `uv` so it picks up the new tool entry:
 
-## ⚖️ License
+```bash
+uvx --refresh skopos
+```
 
-Distributed under the MIT License. See the `LICENSE` file for details.
+If you still want to isolate the CLI into a virtual environment (recommended for development), create and activate one first and then install into it via `pip install -e .`.
 
-Maintained by Joseph Chu — Skopos GitHub
+Reload your shell and verify the CLI is available:
+
+```bash
+source ~/.bashrc || source ~/.zshrc
+which skopos || skopos --version
+```
+
+## Automatic Bouncer (Shim)
+
+The best way to use Skopos is to let it intercept your commands automatically. This adds a split-second security check whenever you try to add a new dependency.
+
+- Locate the Shim: The script is located in `scripts/skopos-uv.sh`.
+- Add to your shell (append to `~/.bashrc` or `~/.zshrc`):
+
+```bash
+alias uv='source /path/to/your/skopos/scripts/skopos-uv.sh'
+```
+
+Now, when you run `uv add <package>`, Skopos audits the package first. If the score is too high (malicious), the installation is blocked.
+
+## Usage & Examples
+
+You can audit any package without installing it:
+
+```bash
+skopos check requests-ultra
+```
+
+Example Output (Malicious Package):
+
+```
+🔍 Auditing: requests-ultra
+------------------------------------------------------------
+❌ Typosquatting: FLAG (Match: requests - Keyword stuffing)
+⚠️  Identity:      Unknown (New Account / Unverified)
+✅ Payload:       Clean (No obfuscation)
+------------------------------------------------------------
+🚨 SKOPOS SCORE: 120/100 (MALICIOUS)
+🚫 Action: Installation Blocked.
+```
+
+## Performance
+
+Is it slow? No. Version 0.23.0 removed the heavy `RestrictedPython` sandbox. Skopos now performs "Static Metadata Forensics."
+
+- **Speed:** Checks usually take < 500ms.
+- **Safety:** We never execute the code we are auditing. We analyze the "fingerprints" left on PyPI.
+
+## Forensic Heuristics
+
+Skopos uses a weighted scoring system to evaluate risk:
+
+- **Name Similarity:** reqests vs requests (Levenshtein)
+- **Keyword Stuffing:** requests-security-update
+- **Author Reputation:** Brand new accounts uploading high-value names
+- **Entropy Scan:** Encrypted or obfuscated code strings
+- **Project Velocity:** "Zombie" projects that suddenly wake up
+
+## License
+
+MIT. Built for developers who value their ssh keys and environment variables.

@@ -23,6 +23,7 @@ dependencies=[
     "requests>=2.31.0",
     "rich>=14.3.2",
     "packaging>=26.0",
+    "pytest>=9.0.2",
 ]
 
 [project.scripts]
