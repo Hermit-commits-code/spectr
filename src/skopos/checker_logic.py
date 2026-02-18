@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 # v0.22: Refined weights to prioritize execution risk over metadata gaps
 SCORING_WEIGHTS = {
     "typosquatting": 100,  # Critical: Immediate 0 score
-    "sandbox_violation": 70,  # High: Attempted restricted access
     "payload_risk": 50,  # High: Suspicious binaries/scripts
     "resurrection": 40,  # Medium/High: Potential hijacked account
     "obfuscation": 30,  # Medium: High-entropy filenames/code
@@ -23,10 +22,10 @@ def calculate_entropy(data: str) -> float:
     """Calculates Shannon Entropy to detect obfuscation or packed payloads."""
     if not data:
         return 0.0
-    occurances = Counter(data)
+    occurrences = Counter(data)
     length = len(data)
     return -sum(
-        (count / length) * math.log2(count / length) for count in occurances.values()
+        (count / length) * math.log2(count / length) for count in occurrences.values()
     )
 
 
@@ -50,32 +49,31 @@ def levenshtein_distance(s1: str, s2: str) -> int:
 
 
 # --- HEURISTICS ---
+DEFAULT_TARGETS = {
+    "requests": 1, "urllib3": 1, "pip": 1, "boto3": 1, "pandas": 1, 
+    "numpy": 1, "tensorflow": 2, "torch": 1, "django": 1, "flask": 1, 
+    "cryptography": 2, "pydantic": 1, "openai": 1, "ansible": 1,
+    "matplotlib": 2, "scipy": 1, "selenium": 1, "pyyaml": 1
+}
 
-
-def check_for_typosquatting(package_name: str):
-    """v0.22: Consolidated engine protecting high-value targets."""
-    targets = {
-        "requests": 1,
-        "urllib3": 1,
-        "pip": 1,
-        "boto3": 1,
-        "pandas": 1,
-        "numpy": 1,
-        "tensorflow": 2,
-        "torch": 1,
-        "django": 1,
-        "flask": 1,
-        "cryptography": 2,
-        "pydantic": 1,
-        "openai": 1,
-        "ansible": 1,
-    }
+def check_for_typosquatting(package_name: str, custom_targets=None):
+    """v0.23.0: Detects similarity AND keyword-stuffing attacks."""
+    targets = custom_targets or DEFAULT_TARGETS
     name = package_name.lower()
+    
     for target, threshold in targets.items():
-        if name == target:
+        if name == target: 
             continue
+        
+        # 1. Levenshtein check (Similarity)
         if levenshtein_distance(name, target) <= threshold:
             return True, target
+            
+        # 2. Keyword-stuffing check (e.g., 'requests-ultra', 'pip-security')
+        # We flag it if a high-value brand is in the name but it's not the actual package
+        if target in name and (len(name) - len(target)) <= 8:
+            return True, f"{target} (Keyword match)"
+            
     return False, None
 
 

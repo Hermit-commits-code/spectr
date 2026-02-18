@@ -21,7 +21,6 @@ from skopos.checker_logic import (
     check_for_updates,
     check_identity
 )
-from skopos.sandbox import execute_in_sandbox
 
 # --- CONFIGURATION ---
 VERSION = "0.22.0"
@@ -107,7 +106,6 @@ def check_package(package, args, depth=0):
     info = data.get("info", {})
     typo_check = check_for_typosquatting(package)
     payload_passed, payload_meta = scan_payload(package, data)
-    sandbox_passed, sandbox_meta = execute_in_sandbox(info.get("description", ""))
 
     findings = {
         "Typosquatting": typo_check,
@@ -115,7 +113,6 @@ def check_package(package, args, depth=0):
         "Reputation": check_reputation(package, data),
         "Resurrection": check_resurrection(data),
         "Payload": (payload_passed, payload_meta),
-        "Sandbox": (sandbox_passed, sandbox_meta),
     }
 
     score = calculate_skopos_score(findings)

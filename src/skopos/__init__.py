@@ -8,7 +8,6 @@ from .checker_logic import (
     check_for_updates,
     check_identity
 )
-from .sandbox import execute_in_sandbox
 from .cache import CacheManager
 
-__version__ = "0.22.0"
+__version__ = "0.23.0"
