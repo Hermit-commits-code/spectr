@@ -254,6 +254,41 @@ Skopos provides two ways to intercept package installs:
 
 Both approaches are conservative and will skip blocking behavior if the `skopos` CLI is not available on PATH (in which case they print a warning and allow the underlying command to continue).
 
+## Using the repository shims (local development)
+
+If you are developing Skopos or want to run the CLI without installing, use the provided shims in `scripts/`.
+
+- Bash (Unix/macOS):
+
+```bash
+# Run a local check using the repo sources (no install required)
+bash scripts/skopos-uv.sh check requests
+
+# Intercept an install (shim will audit then forward to your `uv` binary)
+bash scripts/skopos-uv.sh add some-package
+```
+
+- PowerShell (Windows):
+
+```powershell
+# From repo root
+.\scripts\skopos-uv.ps1 check requests
+```
+
+Notes:
+- The shims prefer `python3` but will fall back to `python` if needed.
+- The bash shim resolves the repository root using the script location, then runs the module with `PYTHONPATH` set to the repo's `src/` directory so you don't need to `pip install` during development.
+- If you prefer a persistent alias, add the following to your shell rc (use with care):
+
+```bash
+alias uv='bash /path/to/skopos/scripts/skopos-uv.sh'
+```
+
+Troubleshooting:
+- If you see `skopos not found`, ensure you ran the shim from the repository root, or install `skopos-audit` into your environment.
+- On systems where `python` resolves to Python 2, the shim will try `python3`. If neither is present, install Python 3.10+.
+
+
 ---
 
 If you want, I can also add annotated screenshots or richer example logs for CI usage and a short section describing how to tune thresholds for your organization.
