@@ -44,6 +44,10 @@ DEFAULTS: Dict[str, Any] = {
         "hidden_identity": 10,
         "low_velocity": 10,
     },
+    "integrations": {
+        "snyk": {"enabled": False, "api_key": ""},
+        "socket": {"enabled": False, "endpoint": ""},
+    },
 }
 
 

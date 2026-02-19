@@ -189,7 +189,7 @@ If the file is missing or malformed, Skopos falls back to safe defaults so behav
 
 - **Operational advice:** Never build or install untrusted packages on your primary workstation. If you need to analyze package contents, do so in an isolated VM or container with no secrets and limited network access, and prefer static inspection (unpacking archives and scanning files) over executing any build scripts.
 
-- **Limitations / LGTM:** While `skopos` performs metadata forensics and reduces risk, it is not perfect and may not catch every malicious package or installation-time behavior. Consider Skopos' findings advisory — for high-risk or sensitive packages, perform isolated, in-depth analysis in a disposable VM or container.
+- **Limitations** While `skopos` performs metadata forensics and reduces risk, it is not perfect and may not catch every malicious package or installation-time behavior. Consider Skopos' findings advisory — for high-risk or sensitive packages, perform isolated, in-depth analysis in a disposable VM or container.
 
 ## Examples (Good vs Malicious)
 
