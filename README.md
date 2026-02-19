@@ -279,3 +279,5 @@ offline_file = "/full/path/to/snyk_offline.json"
 ```
 
 When enabled, Snyk findings from the offline feed will be included in reports and factored into scoring (weight: `snyk_vuln`). The loader only edits your configuration file and performs no network activity.
+
+Note: the demo script and the offline sample feed are intentionally excluded from packaged releases (see `MANIFEST.in`) and therefore won't be installed via `pip` or `uv tool install`. To run the demo, clone the repository and run `scripts/demo_offline_snyk.sh` locally.
