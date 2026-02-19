@@ -24,6 +24,27 @@ run_skopos_check() {
     return 127
 }
 
+# If the wrapper is invoked with a skopos CLI subcommand (e.g. `check`),
+# run the skopos CLI directly so users can call the script as a local shim.
+case "$COMMAND" in
+    check|audit|config|integrations|help|--help|-h)
+        if command -v skopos >/dev/null 2>&1; then
+            skopos "$COMMAND" "$@"
+            exit $?
+        fi
+
+        if python -c "import importlib; importlib.import_module('skopos.checker')" >/dev/null 2>&1; then
+            python -m skopos.checker "$COMMAND" "$@"
+            exit $?
+        fi
+
+        echo -e "\033[0;33m[Skopos] skopos not found; install or run from repo root.\033[0m" >&2
+        exit 127
+        ;;
+    *)
+        ;;
+esac
+
 if [[ "$COMMAND" == "add" || "$COMMAND" == "run" ]]; then
     # The last argument is usually the package name
     PACKAGE="${@: -1}"
