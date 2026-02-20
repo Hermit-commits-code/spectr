@@ -29,6 +29,18 @@ Shim onboarding:
 
 The shim prints a short hint when `skopos` isn't available.
 
+UV verification
+---------------
+
+If you use the `uv` package manager, validate the release by installing the tool and exercising the shim in a clean environment:
+
+```bash
+# install the skopos tool via uv (after publishing or using a built wheel)
+uv tool install skopos-audit
+uvx --refresh skopos
+uv add somepackage --yes || true
+```
+
 Coverage badge
 ---------------
 

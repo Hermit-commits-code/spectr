@@ -40,6 +40,20 @@ python -m build --sdist --wheel -o dist
 tar -tf dist/*.tar.gz
 ```
 
+UV users — verification
+-----------------------
+
+If your environment uses `uv`, verify the packaged tool as follows in a clean environment:
+
+```bash
+# install the released package as an `uv` tool (local dev: use editable install or the built wheel)
+uv tool install skopos-audit
+# refresh uv tool listings if necessary
+uvx --refresh skopos
+# Try adding a package to ensure the shim intercepts and audits
+uv add requests --yes || true
+```
+
 Release to PyPI (manual)
 - Ensure version bump in `pyproject.toml`.
 - Build distribution as above.
