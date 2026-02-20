@@ -24,6 +24,7 @@ Skopos (Greek for "watcher/lookout") is a high-speed forensic audit tool designe
 - [Performance](#performance)
 - [Forensic Heuristics](#forensic-heuristics)
 - [License](#license)
+- [Contributing](docs/CONTRIBUTING.md)
 
 ## Why Skopos?
 
